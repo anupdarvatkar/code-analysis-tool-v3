@@ -2,3 +2,5 @@ python-dotenv
 google-genai
 neo4j
 pydantic
+langchain-neo4j
+google-adk
