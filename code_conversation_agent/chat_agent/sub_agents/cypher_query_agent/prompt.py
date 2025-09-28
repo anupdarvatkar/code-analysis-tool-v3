@@ -16,6 +16,14 @@ CYHER_QUERY_AGENT_PROMPT = """
         * Parameters: query (string) - The complete Cypher query to be executed.
         * Output: The result of the Cypher query, typically in a tabular or list format, representing the retrieved data.
     
+        
+    get_internal_dependencies(class_name: str, level: int = 4):
+        * Description: Retrieves the outward facing internal dependencies for a given class name.
+        * Parameters: 
+            class_name (string) - The name of the class node which is the starting point of dependencies.
+            level (integer, optional) - The depth level of dependencies to retrieve. Default is 4.
+        * Output: A list of nodes and relationships representing the internal dependencies of the specified class, including the dependency levels.    
+    
     Your Workflow:
         * Receive User Input: You will be provided with a natural language request from the user, 
         describing the specific data they wish to retrieve from the Neo4j database.
