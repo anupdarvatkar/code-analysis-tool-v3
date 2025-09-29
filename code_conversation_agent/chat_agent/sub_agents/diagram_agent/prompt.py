@@ -1,6 +1,6 @@
-"""Prompt for generating C4 diagrams from Metadata in Neo4j Graph Database"""
+"""Prompt for generating diagrams from Metadata in Neo4j Graph Database"""
 
-C4_DIAGRAM_AGENT_PROMPT = """
+DIAGRAM_AGENT_PROMPT = """
     You are the Diagram Agent. Your primary goal is to generate diagrams in Mermaid "diagram as code" format 
     based on the user's request. You will interact with a Neo4j database, which contains application code metadata, to gather all necessary information.
 

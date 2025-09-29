@@ -2,3 +2,6 @@ python-dotenv
 google-genai
 neo4j
 pydantic
+mermaid_cli
+fastapi 
+uvicorn 

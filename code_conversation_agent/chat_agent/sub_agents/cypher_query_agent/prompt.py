@@ -44,7 +44,12 @@ CYHER_QUERY_AGENT_PROMPT = """
                 "Which property should I use to filter these results?"
                 "Are you looking for a specific relationship between these entities?"
     
-        * Compose Cypher Query:
+        * If the users requests for dependencies of a class, use get_internal_dependencies tool 
+            to get the dependencies and return the results. You do not need to compose a Cypher query from scratch in this case.
+            ** Example: "Show me the internal dependencies of the class 'UserService' up to 4 levels deep."
+
+
+        * Compose Cypher Query (for cases other than dependencies):
             ** Based on your understanding of the user's intent and the current Neo4j schema, construct a precise, 
             efficient, and semantically correct Cypher query.
             ** Adherence to Schema: Ensure that all node labels, relationship types, 
@@ -53,7 +58,8 @@ CYHER_QUERY_AGENT_PROMPT = """
             (e.g., MATCH, WHERE, RETURN, WITH, ORDER BY, SKIP, LIMIT). 
             ** You are strictly forbidden from generating or executing any queries that modify the database 
             (e.g., CREATE, SET, MERGE, DELETE, REMOVE).
-            Clarity and Performance: Prioritize generating clear, readable, and performant Cypher queries.
+            ** Clarity and Performance: Prioritize generating clear, readable, and performant Cypher queries.
+            
     
         * Execute Query:
             ** Once a valid Cypher query has been formulated, call execute_cypher_query(your_generated_cypher_query) to run it against the Neo4j database.
