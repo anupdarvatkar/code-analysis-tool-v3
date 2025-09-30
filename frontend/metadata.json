@@ -1,0 +1,5 @@
+{
+  "name": "Talk to the Code",
+  "description": "An application to generate and visualize Mermaid diagrams through an interactive chat with Gemini. It also includes a dashboard to display project code metrics and structure.",
+  "requestFramePermissions": []
+}
