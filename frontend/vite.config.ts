@@ -7,7 +7,21 @@ export default defineConfig(({ mode }) => {
     return {
       server: {
         port: 3000,
-        host: '0.0.0.0',
+        host: '127.0.0.1',
+        proxy: {
+          // Proxy API requests to backend to avoid CORS issues
+          '/run_sse': {
+            target: 'http://127.0.0.1:9000',
+            changeOrigin: true,
+            secure: false,
+          },
+          '/apps': {
+            target: 'http://127.0.0.1:9000',
+            changeOrigin: true,
+            secure: false,
+          },
+          // Add more proxies as needed for other endpoints
+        },
       },
       plugins: [react()],
       define: {

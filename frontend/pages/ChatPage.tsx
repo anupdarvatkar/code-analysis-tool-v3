@@ -8,11 +8,118 @@ const API_URL = import.meta.env.VITE_CHAT_API_URL || "http://127.0.0.1:9000/run_
 const SESSION_API_BASE = import.meta.env.VITE_SESSION_API_URL || "http://127.0.0.1:9000";
 
 function generateUserId() {
-  // Simple unique user id (could use uuid library for more robust solution)
   return 'user-' + Math.random().toString(36).substring(2, 12);
 }
 
+function generateSessionId() {
+  return 'session-' + Math.random().toString(36).substring(2, 12);
+}
+
 const APP_NAME = "TALK_CODE";
+
+// Reference implementation for calling /run_sse and parsing response
+export const sendMessageToAgent = async (message: string, userId: string, sessionId: string): Promise<string> => {
+  try {
+    const payload = {
+      appName: APP_NAME,
+      userId,
+      sessionId,
+      newMessage: {
+        parts: [
+          { text: message }
+        ],
+        role: "user"
+      },
+      streaming: false
+    };
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream; charset=utf-8'
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Server responded with status: ${response.status}`);
+    }
+
+    const text = await response.text();
+    const lines = text.split('\n').filter(line => line.startsWith('data: '));
+    let toolText: string | null = null;
+    let modelText: string | null = null;
+    for (const line of lines) {
+      const jsonText = line.slice(6);
+      const data = JSON.parse(jsonText);
+
+      const toolResponse = (data.tool_response ?? data.function_response ?? data.response ?? data.result ?? null) as any;
+      if (toolResponse && typeof toolResponse === 'object') {
+        if (typeof toolResponse.final_text === 'string' && toolResponse.final_text.trim().length > 0) {
+          toolText = toolResponse.final_text;
+        }
+      }
+
+      if (
+        data.content &&
+        Array.isArray(data.content.parts) &&
+        data.content.parts[0]?.text
+      ) {
+        modelText = data.content.parts[0].text as string;
+      }
+
+      if (toolText) {
+        return toolText;
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+    }
+
+    try {
+      const lastLine = lines[lines.length - 1];
+      if (lastLine && lastLine.startsWith('data: ')) {
+        const lastData = JSON.parse(lastLine.slice(6));
+        const lastTool = (lastData.tool_response ?? lastData.function_response ?? lastData.response ?? lastData.result ?? null) as any;
+        if (lastTool && lastTool.render_suggestions && lastTool.render_suggestions.title) {
+          const title = lastTool.render_suggestions.title as string;
+          const rsLines = (lastTool.render_suggestions.lines as string[]) || [];
+          const groups = (lastTool.render_suggestions.groups as { term: string; lines: string[] }[]) || [];
+          if (title && Array.isArray(rsLines) && rsLines.length > 0) {
+            const composed = [title, ...rsLines.map((l: string, i: number) => `${i + 1}. ${l}`)].join('\n');
+            return composed;
+          }
+          if (title && Array.isArray(groups) && groups.length > 0) {
+            const parts: string[] = [title];
+            for (const g of groups) {
+              parts.push('');
+              parts.push(g.term);
+              if (Array.isArray(g.lines) && g.lines.length > 0) {
+                parts.push('Best match for your search is:');
+                parts.push(`1. ${g.lines[0]}`);
+                if (g.lines.length > 1) {
+                  parts.push('Other related suggestions:');
+                  for (let i = 1; i < g.lines.length; i++) {
+                    parts.push(`${i + 1}. ${g.lines[i]}`);
+                  }
+                }
+              }
+            }
+            return parts.join('\n');
+          }
+        }
+      }
+    } catch {}
+
+    throw new Error('No valid function response or text found in SSE stream.');
+  } catch (error) {
+    console.error("Failed to communicate with the agent backend:", error);
+    throw error;
+  }
+};
 
 const ChatMessageComponent: React.FC<{ message: { author: string; text: string } }> = ({ message }) => {
   const isUser = message.author === MessageAuthor.USER;
@@ -62,16 +169,17 @@ const ChatPage: React.FC = () => {
   const [userId, setUserId] = useState<string>('');
   const [sessionId, setSessionId] = useState<string>('');
 
-  // Establish session when chat page loads or refreshes
   useEffect(() => {
     const storedUserId = localStorage.getItem('chat_user_id');
     const user_id = storedUserId || generateUserId();
     if (!storedUserId) localStorage.setItem('chat_user_id', user_id);
 
+    // Generate a unique sessionId for each load/refresh
+    const newSessionId = generateSessionId();
     setUserId(user_id);
+    setSessionId(newSessionId);
 
-    // Establish session
-    fetch(`${SESSION_API_BASE}/apps/${APP_NAME}/users/${user_id}/sessions`, {
+    fetch(`/apps/${APP_NAME}/users/${user_id}/sessions/${newSessionId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" }
     })
@@ -80,11 +188,10 @@ const ChatPage: React.FC = () => {
         return res.json();
       })
       .then(data => {
-        // Assume sessionId is returned as { sessionId: "..." }
-        setSessionId(data.sessionId || "session-1");
+        setSessionId(data.sessionId || newSessionId);
       })
       .catch(err => {
-        setSessionId("session-1");
+        setSessionId(newSessionId);
         console.error("Session error:", err);
       });
   }, []);
@@ -97,55 +204,21 @@ const ChatPage: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Function to send user input to /run_sse and handle response
-  const sendMessageToAgent = async (userInput: string) => {
-    setIsLoading(true);
-    setMessages(prev => [...prev, { author: MessageAuthor.USER, text: userInput }, { author: MessageAuthor.AI, text: '...' }]);
-
-    try {
-      const payload = {
-        appName: APP_NAME,
-        userId: userId,
-        sessionId: sessionId,
-        newMessage: {
-          parts: [
-            {
-              text: userInput
-            }
-          ],
-          role: "user"
-        },
-        streaming: false,
-        stateDelta: {}
-      };
-
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) throw new Error("Failed to get response from agent");
-
-      const data = await response.json();
-      // Assuming the agent's reply is in data.parts[0].text
-      const agentReply = data?.parts?.[0]?.text || "No response from agent.";
-
-      setMessages(prev => prev.slice(0, -1).concat({ author: MessageAuthor.AI, text: agentReply }));
-    } catch (error) {
-      setMessages(prev => prev.slice(0, -1).concat({ author: MessageAuthor.AI, text: "Sorry, I encountered an error." }));
-      console.error("Error communicating with agent:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSendMessage = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!input.trim() || isLoading) return;
-      await sendMessageToAgent(input);
-      setInput('');
+      setIsLoading(true);
+      setMessages(prev => [...prev, { author: MessageAuthor.USER, text: input }, { author: MessageAuthor.AI, text: '...' }]);
+      try {
+        const agentReply = await sendMessageToAgent(input, userId, sessionId);
+        setMessages(prev => prev.slice(0, -1).concat({ author: MessageAuthor.AI, text: agentReply }));
+      } catch (error) {
+        setMessages(prev => prev.slice(0, -1).concat({ author: MessageAuthor.AI, text: "Sorry, I encountered an error." }));
+      } finally {
+        setIsLoading(false);
+        setInput('');
+      }
     },
     [input, isLoading, userId, sessionId]
   );
