@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { MOCK_PACKAGE_DATA } from '../constants';
-import { generateClassSpecification } from '../services/geminiService';
 import { DocumentTextIcon } from '../components/icons/Icons';
+
+const API_URL = "http://127.0.0.1:8085";
 
 const ClassDetailsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -10,11 +10,28 @@ const ClassDetailsPage: React.FC = () => {
   const [specification, setSpecification] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [allClasses, setAllClasses] = useState<string[]>([]);
 
-  const allClasses = useMemo(() => {
-    return MOCK_PACKAGE_DATA.flatMap(pkg => pkg.details.classes).sort();
+  // Fetch all classes where package_name contains 'jtspringproject'
+  useEffect(() => {
+    fetch(`${API_URL}/classes/dependencies`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch class dependencies');
+        return res.json();
+      })
+      .then((data) => {
+        const filtered = data
+          .filter((item: any) => item.package_name && item.package_name.includes('jtspringproject'))
+          .map((item: any) => item.class_name);
+        setAllClasses(filtered.sort());
+      })
+      .catch((err) => {
+        setAllClasses([]);
+        console.error("Fetch error:", err);
+      });
   }, []);
 
+  // Fetch specification for selected class
   const fetchSpecification = useCallback(async (className: string) => {
     if (!className) {
       setSpecification('');
@@ -27,8 +44,10 @@ const ClassDetailsPage: React.FC = () => {
     setSpecification('');
 
     try {
-      const result = await generateClassSpecification(className);
-      setSpecification(result);
+      const res = await fetch(`${API_URL}/classes/functional-specification?class_name=${encodeURIComponent(className)}`);
+      if (!res.ok) throw new Error('Failed to fetch functional specification');
+      const result = await res.json();
+      setSpecification(result.functional_specification);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
       setError(`Failed to generate specification. ${errorMessage}`);
@@ -37,6 +56,7 @@ const ClassDetailsPage: React.FC = () => {
     }
   }, []);
 
+  // Handle query param selection
   useEffect(() => {
     const classNameFromQuery = searchParams.get('class');
     if (classNameFromQuery && allClasses.includes(classNameFromQuery)) {

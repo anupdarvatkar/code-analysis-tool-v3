@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, PieChart, Pie, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { MOCK_PACKAGE_DATA, BAR_CHART_DATA, PIE_CHART_DATA, TOTAL_CLASSES } from '../constants';
+import { PIE_CHART_DATA } from '../constants';
 
 const COLORS = ['#0055A0', '#009B9B', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -10,14 +10,110 @@ const DashboardPage: React.FC = () => {
   const [transitionKey, setTransitionKey] = useState(0);
   const itemsPerPage = 7;
 
-  const tableData = useMemo(() => {
-    return MOCK_PACKAGE_DATA.flatMap(pkg =>
-      pkg.details.classes.map(className => ({
-        packageName: pkg.name,
-        className: className,
-        dependencyCount: pkg.count,
-      }))
-    );
+  // State for API data
+  const [tableData, setTableData] = useState<
+    { packageName: string; className: string; dependencyCount: number }[]
+  >([]);
+  const [totalClasses, setTotalClasses] = useState<number>(0);
+  const [barChartData, setBarChartData] = useState<{ name: string; value: number }[]>([]);
+  const [pieChartData, setPieChartData] = useState<{ name: string; value: number }[]>([]);
+
+  // Fetch data from /classes/dependencies API
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    fetch(`${apiUrl}/classes/dependencies`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch class dependencies');
+        return res.json();
+      })
+      .then((data) => {
+        const formatted = data.map((item: any) => ({
+          packageName: item.package_name,
+          className: item.class_name,
+          dependencyCount: item.dependency_count,
+        }));
+        setTableData(formatted);
+      })
+      .catch((err) => {
+        console.error("Fetch error:", err);
+        setTableData([]);
+      });
+  }, []);
+
+  // Fetch total classes from /nodes/count-of-classes API
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    fetch(`${apiUrl}/nodes/count-of-classes`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch total classes');
+        return res.json();
+      })
+      .then((data) => {
+        setTotalClasses(data);
+      })
+      .catch((err) => {
+        console.error("Fetch error:", err);
+        setTotalClasses(0);
+      });
+  }, []);
+
+  // Fetch bar chart data from /packages/class-counts API
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    fetch(`${apiUrl}/packages/class-counts`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch package class counts');
+        return res.json();
+      })
+      .then((data) => {
+        // Filter for package_name containing 'jtspringproject'
+        // Truncate first two folders from package_name for short display
+        const filtered = data
+          .filter((item: any) => item.package_name && item.package_name.includes('jtspringproject'))
+          .map((item: any) => {
+            const parts = item.package_name.split('.');
+            // Remove first two folders if there are at least three parts
+            const shortName = parts.length > 2 ? parts.slice(2).join('.') : item.package_name;
+            return {
+              name: shortName,
+              value: item.class_count,
+            };
+          });
+        setBarChartData(filtered);
+      })
+      .catch((err) => {
+        console.error("Fetch error:", err);
+        setBarChartData([]);
+      });
+  }, []);
+
+  // Fetch pie chart data from /packages/class-counts API
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    fetch(`${apiUrl}/packages/class-counts`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch package class counts');
+        return res.json();
+      })
+      .then((data) => {
+        // Filter for package_name containing 'jtspringproject'
+        // Use last folder name as package name for pie chart
+        const filtered = data
+          .filter((item: any) => item.package_name && item.package_name.includes('jtspringproject'))
+          .map((item: any) => {
+            const parts = item.package_name.split('.');
+            const lastName = parts.length > 0 ? parts[parts.length - 1] : item.package_name;
+            return {
+              name: lastName,
+              value: item.class_count,
+            };
+          });
+        setPieChartData(filtered);
+      })
+      .catch((err) => {
+        console.error("Fetch error:", err);
+        setPieChartData([]);
+      });
   }, []);
 
   const totalPages = Math.ceil(tableData.length / itemsPerPage);
@@ -38,7 +134,6 @@ const DashboardPage: React.FC = () => {
   const handlePrevPage = () => {
     handlePageChange(currentPage - 1);
   };
-
 
   return (
     <div className="space-y-8">
@@ -107,7 +202,7 @@ const DashboardPage: React.FC = () => {
 
         <div className="bg-white p-6 rounded-md shadow-sm border border-gray-200 flex flex-col justify-center items-center">
           <h2 className="text-2xl font-semibold text-gray-800 mb-2">Total Classes</h2>
-          <p className="text-6xl font-bold text-blue-700">{TOTAL_CLASSES}</p>
+          <p className="text-6xl font-bold text-blue-700">{totalClasses}</p>
           <p className="text-gray-500 mt-2">across all packages</p>
         </div>
       </div>
@@ -117,8 +212,33 @@ const DashboardPage: React.FC = () => {
         <div className="xl:col-span-3 bg-white p-6 rounded-md shadow-sm border border-gray-200">
           <h2 className="text-2xl font-semibold text-gray-800 mb-6">Classes per Package</h2>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={BAR_CHART_DATA} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-              <XAxis dataKey="name" stroke="#a1a1aa" tick={{ fill: '#3f3f46' }} fontSize={12} />
+            <BarChart data={barChartData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+              <XAxis
+                dataKey="name"
+                stroke="#a1a1aa"
+                interval={0} // Show all package names
+                tick={({ x, y, payload, index }) => {
+                  // Split by '.' and wrap each part on a new line for better readability
+                  const lines = payload.value.split('.'); 
+                  return (
+                    <g>
+                      {lines.map((line: string, i: number) => (
+                        <text
+                          key={i}
+                          x={x}
+                          y={y + 10 + i * 14} // 14px line height
+                          textAnchor="middle"
+                          fill="#3f3f46"
+                          fontSize={12}
+                        >
+                          {line}
+                        </text>
+                      ))}
+                    </g>
+                  );
+                }}
+                height={60} // Increase height for wrapped labels
+              />
               <YAxis stroke="#a1a1aa" tick={{ fill: '#3f3f46' }} fontSize={12} />
               <Tooltip cursor={{fill: 'rgba(200, 200, 200, 0.2)'}} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb' }} />
               <Legend />
@@ -130,8 +250,8 @@ const DashboardPage: React.FC = () => {
           <h2 className="text-2xl font-semibold text-gray-800 mb-6">Package Distribution</h2>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie data={PIE_CHART_DATA} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                 {PIE_CHART_DATA.map((entry, index) => (
+              <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                 {pieChartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
