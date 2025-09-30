@@ -25,14 +25,14 @@ const Sidebar: React.FC = () => {
           <BarChartIcon className="w-6 h-6 mr-4" />
           Dashboard
         </NavLink>
+         <NavLink to="/class-details" className={navLinkClasses}>
+          <DocumentTextIcon className="w-6 h-6 mr-4" />
+          Class Functional Details
+        </NavLink>
         <NavLink to="/chat" className={navLinkClasses}>
           <MessageSquareIcon className="w-6 h-6 mr-4" />
           Chat
-        </NavLink>
-        <NavLink to="/class-details" className={navLinkClasses}>
-          <DocumentTextIcon className="w-6 h-6 mr-4" />
-          Class Details
-        </NavLink>
+        </NavLink>       
       </nav>
     </div>
   );

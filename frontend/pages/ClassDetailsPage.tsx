@@ -73,7 +73,7 @@ const ClassDetailsPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-4xl font-bold text-gray-900">Class Functional Specifications</h1>
+      <h1 className="text-4xl font-bold text-gray-900">Class Functional Details</h1>
       
       <div className="bg-white p-6 rounded-md shadow-sm border border-gray-200">
         <div className="mb-6">
@@ -118,7 +118,7 @@ const ClassDetailsPage: React.FC = () => {
             <div>
               <h2 className="text-2xl font-semibold text-gray-800 mb-4 flex items-center">
                 <DocumentTextIcon className="w-6 h-6 mr-3 text-blue-700"/>
-                Specification for <code className="ml-2 font-mono bg-gray-100 text-blue-800 px-2 py-1 rounded">{selectedClass}</code>
+                Details for <code className="ml-2 font-mono bg-gray-100 text-blue-800 px-2 py-1 rounded">{selectedClass}</code>
               </h2>
               <div className="p-6 bg-gray-50 border border-gray-200 rounded-md">
                  <div className="prose max-w-none text-gray-700 whitespace-pre-wrap">{specification}</div>
