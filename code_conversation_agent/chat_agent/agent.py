@@ -5,7 +5,7 @@ from google.adk.tools.agent_tool import AgentTool
 
 from . import prompt
 from .sub_agents.cypher_query_agent.agent import cypher_query_agent
-from .sub_agents.c4_diagram_agent.agent import c4_diagram_agent
+from .sub_agents.diagram_agent.agent import diagram_agent
 
 
 MODEL = "gemini-2.5-pro"
@@ -17,7 +17,7 @@ root_agent = Agent(
     instruction=prompt.ROOT_PROMPT,
     tools=[
         AgentTool(agent=cypher_query_agent),
-        AgentTool(agent=c4_diagram_agent),
+        AgentTool(agent=diagram_agent),
     ]
 )
 
