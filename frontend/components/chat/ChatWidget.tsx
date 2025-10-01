@@ -80,6 +80,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
   const [splitView, setSplitView] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [cliPage, setCliPage] = useState<'text' | 'cli'>('cli');
   const menuRef = useRef<HTMLDivElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
 
@@ -207,20 +208,20 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
     }
   }, [splitView, showFlip, svgCode, response]);
 
-  // Flip animation styles (responsive, no fixed height)
+  // Update flipStyles so the widget never exceeds its parent (chat window) width when maximized
   const flipStyles = {
     perspective: '1000px',
     position: 'relative',
-    width: maximized ? '100%' : '100%',
-    maxWidth: maximized ? '100%' : '1000px', // never exceed parent width
+    width: '100%', // always 100% of parent
+    maxWidth: '100%', // never exceed parent width
     left: maximized ? 0 : undefined,
     top: maximized ? 0 : undefined,
     zIndex: maximized ? 50 : undefined,
     background: maximized ? 'rgba(255,255,255,0.98)' : undefined,
-    minHeight: maximized ? '70vh' : undefined, // fit within chat window, not full viewport
-    maxHeight: maximized ? '80vh' : undefined, // fit within chat window, not full viewport
+    minHeight: maximized ? '70vh' : undefined,
+    maxHeight: maximized ? '80vh' : undefined,
     boxShadow: maximized ? '0 0 0 9999px rgba(0,0,0,0.2)' : undefined,
-    overflow: maximized ? 'hidden' : undefined, // Prevent double scrollbars
+    overflow: maximized ? 'hidden' : undefined,
   };
   const cardStyles = {
     transition: 'transform 0.6s',
@@ -236,6 +237,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
     left: 0,
     display: showFlip ? 'none' : 'block',
   };
+  // Update backStyles to also respect parent width
   const backStyles = {
     backfaceVisibility: 'hidden' as const,
     position: showFlip ? 'relative' as const : 'absolute' as const,
@@ -251,7 +253,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
     display: showFlip ? 'block' : 'none',
     minHeight: maximized ? '60vh' : undefined,
     maxHeight: maximized ? '75vh' : undefined,
-    overflow: maximized ? 'auto' : undefined, // Only inner content scrolls
+    overflow: maximized ? 'auto' : undefined,
   };
 
   // Handler functions for drag-to-scroll
@@ -443,7 +445,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
                   boxShadow: maximized ? '0 2px 16px rgba(0,0,0,0.18)' : undefined,
                   padding: maximized ? '2rem' : undefined,
                   minWidth: maximized ? '60vw' : '600px',
-                  maxWidth: maximized ? 'calc(100vw - 6rem)' : '1000px',
+                  maxWidth: '100%', // never exceed widget width
                   width: '100%',
                   cursor: 'grab',
                   userSelect: 'none',
@@ -468,7 +470,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
                     alignItems: 'center',
                     transform: `scale(${zoom})`,
                     transformOrigin: 'top center',
-                    pointerEvents: 'none', // prevent SVG from capturing mouse events
+                    pointerEvents: 'none',
                   }}
                   dangerouslySetInnerHTML={{ __html: svgCode || '' }}
                 />
@@ -477,27 +479,59 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
           )}
           {showFlip && splitView && (
             <div className="flex flex-col md:flex-row gap-4 relative">
+              {/* CLI Instructions & Original Text Side with Pagination */}
               <div
                 className="bg-gray-100 rounded p-3 font-mono text-xs overflow-auto"
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  maxHeight: maximized ? '70vh' : 400,
-                  minHeight: 350,
+                  minHeight: maximized ? 350 : 350,
+                  maxHeight: maximized ? '60vh' : 400,
+                  height: maximized ? '60vh' : 400,
+                  display: 'flex',
+                  flexDirection: 'column',
                 }}
               >
-                <div className="font-bold mb-2 text-blue-700">CLI Instructions</div>
-                <pre style={{ whiteSpace: 'pre-wrap' }}>{getCliInstructions()}</pre>
+                {/* Pagination Controls */}
+                <div className="flex gap-2 mb-2">
+                  <button
+                    className={`px-3 py-1 rounded ${cliPage === 'text' ? 'bg-blue-700 text-white' : 'bg-blue-100 text-blue-700'}`}
+                    onClick={() => setCliPage('text')}
+                  >
+                    Original Text
+                  </button>
+                  <button
+                    className={`px-3 py-1 rounded ${cliPage === 'cli' ? 'bg-blue-700 text-white' : 'bg-blue-100 text-blue-700'}`}
+                    onClick={() => setCliPage('cli')}
+                  >
+                    CLI Instructions
+                  </button>
+                </div>
+                {/* Page Content */}
+                <div style={{ flex: 1, overflow: 'auto' }}>
+                  {cliPage === 'text' ? (
+                    <div className="whitespace-pre-wrap font-mono text-base text-gray-900">{response}</div>
+                  ) : (
+                    <>
+                      <div className="font-bold mb-2 text-blue-700">CLI Instructions</div>
+                      <pre style={{ whiteSpace: 'pre-wrap' }}>{getCliInstructions()}</pre>
+                    </>
+                  )}
+                </div>
               </div>
+              {/* Diagram Side */}
               <div
                 className="overflow-auto flex flex-col items-center bg-white rounded p-3"
                 aria-label="Mermaid Class Diagram"
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  minHeight: 350,
-                  maxHeight: maximized ? '70vh' : 400,
+                  minHeight: maximized ? 350 : 350,
+                  maxHeight: maximized ? '60vh' : 400,
+                  height: maximized ? '60vh' : 400,
                   position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }}
               >
                 {/* Top right controls: Back, Zoom (when maximized), Maximize/Restore */}
@@ -543,20 +577,21 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
                   </button>
                 </div>
                 {/* Add top padding so icons do not overlap diagram */}
-                <div style={{ paddingTop: '3rem', width: '100%' }}>
+                <div style={{ paddingTop: '3rem', width: '100%', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <div
                     ref={imageContainerRef}
                     className="overflow-auto"
                     style={{
                       width: '100%',
-                      maxWidth: maximized ? '100%' : 1000, // never exceed widget width
+                      maxWidth: maximized ? '100%' : 1000,
                       minWidth: maximized ? 600 : 350,
                       minHeight: maximized ? 350 : 350,
-                      maxHeight: maximized ? '60vh' : 600, // constrain height
+                      maxHeight: '100%',
+                      height: '100%',
                       display: 'flex',
                       justifyContent: 'center',
                       alignItems: 'center',
-                      cursor: 'grab', // hand pointer
+                      cursor: 'grab',
                       userSelect: 'none',
                     }}
                     onMouseDown={handleMouseDown}
