@@ -169,6 +169,7 @@ const ChatPage: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Session state
   const [userId, setUserId] = useState<string>('');
@@ -215,6 +216,7 @@ const ChatPage: React.FC = () => {
       if (!input.trim() || isLoading) return;
       setIsLoading(true);
       setMessages(prev => [...prev, { author: MessageAuthor.USER, text: input }, { author: MessageAuthor.AI, text: '...' }]);
+      setInput(''); // Clear input immediately
       try {
         const agentReply = await sendMessageToAgent(input, userId, sessionId);
         setMessages(prev => prev.slice(0, -1).concat({ author: MessageAuthor.AI, text: agentReply }));
@@ -222,7 +224,10 @@ const ChatPage: React.FC = () => {
         setMessages(prev => prev.slice(0, -1).concat({ author: MessageAuthor.AI, text: "Sorry, I encountered an error." }));
       } finally {
         setIsLoading(false);
-        setInput('');
+        // Focus the textarea for next input after response is rendered
+        setTimeout(() => {
+          textareaRef.current?.focus();
+        }, 0);
       }
     },
     [input, isLoading, userId, sessionId]
@@ -244,6 +249,7 @@ const ChatPage: React.FC = () => {
       <div className="p-4 border-t border-gray-200 bg-white rounded-b-md">
         <form onSubmit={handleSendMessage} className="flex items-center space-x-4">
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
