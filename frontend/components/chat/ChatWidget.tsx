@@ -78,7 +78,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
   const [zoom, setZoom] = useState(1);
   const [maximized, setMaximized] = useState(false);
   const [splitView, setSplitView] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
 
   // Download response as a text file
   const handleDownload = () => {
@@ -120,15 +123,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
       setShowFlip(true);
       setMenuOpen(false);
       setZoom(1);
-      setMaximized(false);
-      setSplitView(false); // <-- Ensure split view is disabled
+      // Do NOT reset maximized here, preserve current state
+      setSplitView(false); // Ensure split view is disabled
     } catch (err) {
       setSvgCode('<svg><text x="10" y="20">Error rendering diagram</text></svg>');
       setShowFlip(true);
       setMenuOpen(false);
       setZoom(1);
-      setMaximized(false);
-      setSplitView(false); // <-- Ensure split view is disabled
+      // Do NOT reset maximized here, preserve current state
+      setSplitView(false); // Ensure split view is disabled
     }
   };
 
@@ -209,7 +212,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
     perspective: '1000px',
     position: 'relative',
     width: maximized ? '100%' : '100%',
-    maxWidth: maximized ? '100%' : '1000px',
+    maxWidth: maximized ? '100%' : '1000px', // never exceed parent width
     left: maximized ? 0 : undefined,
     top: maximized ? 0 : undefined,
     zIndex: maximized ? 50 : undefined,
@@ -217,7 +220,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
     minHeight: maximized ? '70vh' : undefined, // fit within chat window, not full viewport
     maxHeight: maximized ? '80vh' : undefined, // fit within chat window, not full viewport
     boxShadow: maximized ? '0 0 0 9999px rgba(0,0,0,0.2)' : undefined,
-    overflow: maximized ? 'auto' : undefined,
+    overflow: maximized ? 'hidden' : undefined, // Prevent double scrollbars
   };
   const cardStyles = {
     transition: 'transform 0.6s',
@@ -248,7 +251,40 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
     display: showFlip ? 'block' : 'none',
     minHeight: maximized ? '60vh' : undefined,
     maxHeight: maximized ? '75vh' : undefined,
-    overflow: maximized ? 'auto' : undefined,
+    overflow: maximized ? 'auto' : undefined, // Only inner content scrolls
+  };
+
+  // Handler functions for drag-to-scroll
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    if (imageContainerRef.current) {
+      imageContainerRef.current.style.cursor = 'grabbing';
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setDragStart(null);
+    if (imageContainerRef.current) {
+      imageContainerRef.current.style.cursor = 'grab';
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+    setDragStart(null);
+    if (imageContainerRef.current) {
+      imageContainerRef.current.style.cursor = 'grab';
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDragging && dragStart && imageContainerRef.current) {
+      imageContainerRef.current.scrollLeft -= e.clientX - dragStart.x;
+      imageContainerRef.current.scrollTop -= e.clientY - dragStart.y;
+      setDragStart({ x: e.clientX, y: e.clientY });
+    }
   };
 
   return (
@@ -306,7 +342,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
             </button>
             <button
               className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-blue-700 hover:bg-blue-50 rounded-lg focus:outline-none focus:bg-blue-100"
-              onClick={() => { setSplitView(true); setShowFlip(true); setMenuOpen(false); }}
+              onClick={() => { setSplitView(true); setShowFlip(true); setMenuOpen(false); /* do not change maximized */ }}
               role="menuitem"
             >
               <svg width="22" height="22" fill="none" viewBox="0 0 24 24" aria-hidden="true">
@@ -336,7 +372,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
         <div style={{
           ...backStyles,
           minWidth: maximized ? '80vw' : '600px',
-          maxWidth: maximized ? '95vw' : '1000px',
+          maxWidth: maximized ? 'calc(100vw - 6rem)' : '1000px',
         }}>
           {showFlip && !splitView && (
             <div>
@@ -396,6 +432,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
                 </button>
               </div>
               <div
+                ref={imageContainerRef}
                 className="overflow-auto flex justify-center items-center"
                 aria-label="Mermaid Class Diagram"
                 style={{
@@ -406,8 +443,19 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
                   boxShadow: maximized ? '0 2px 16px rgba(0,0,0,0.18)' : undefined,
                   padding: maximized ? '2rem' : undefined,
                   minWidth: maximized ? '60vw' : '600px',
-                  maxWidth: maximized ? '95vw' : '1000px',
+                  maxWidth: maximized ? 'calc(100vw - 6rem)' : '1000px',
+                  width: '100%',
+                  cursor: 'grab',
+                  userSelect: 'none',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
                 }}
+                onMouseDown={handleMouseDown}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
+                onMouseMove={handleMouseMove}
+                tabIndex={0}
               >
                 <div
                   style={{
@@ -420,6 +468,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
                     alignItems: 'center',
                     transform: `scale(${zoom})`,
                     transformOrigin: 'top center',
+                    pointerEvents: 'none', // prevent SVG from capturing mouse events
                   }}
                   dangerouslySetInnerHTML={{ __html: svgCode || '' }}
                 />
@@ -496,19 +545,36 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ response }) => {
                 {/* Add top padding so icons do not overlap diagram */}
                 <div style={{ paddingTop: '3rem', width: '100%' }}>
                   <div
+                    ref={imageContainerRef}
+                    className="overflow-auto"
                     style={{
                       width: '100%',
-                      maxWidth: maximized ? '90vw' : 1000,
+                      maxWidth: maximized ? '100%' : 1000, // never exceed widget width
                       minWidth: maximized ? 600 : 350,
                       minHeight: maximized ? 350 : 350,
+                      maxHeight: maximized ? '60vh' : 600, // constrain height
                       display: 'flex',
                       justifyContent: 'center',
                       alignItems: 'center',
-                      transform: maximized ? `scale(${zoom})` : 'none',
-                      transformOrigin: 'top center',
+                      cursor: 'grab', // hand pointer
+                      userSelect: 'none',
                     }}
-                    dangerouslySetInnerHTML={{ __html: svgCode || '' }}
-                  />
+                    onMouseDown={handleMouseDown}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseLeave}
+                    onMouseMove={handleMouseMove}
+                    tabIndex={0}
+                  >
+                    <div
+                      style={{
+                        width: '100%',
+                        transform: maximized ? `scale(${zoom})` : 'none',
+                        transformOrigin: 'top center',
+                        pointerEvents: 'none', // prevent SVG from capturing mouse events
+                      }}
+                      dangerouslySetInnerHTML={{ __html: svgCode || '' }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
