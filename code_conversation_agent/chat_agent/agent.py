@@ -18,8 +18,8 @@ root_agent = Agent(
     description="Agent to converse with Neo4j Graph for Code Analysis and diagram generation",
     instruction=prompt.ROOT_PROMPT,
     tools=[
-        AgentTool(agent=cypher_query_agent),
-        AgentTool(agent=diagram_agent),
+        AgentTool(agent=cypher_query_agent)
+      
     ]
 )
 

@@ -15,7 +15,7 @@ function generateSessionId() {
   return 'session-' + Math.random().toString(36).substring(2, 12);
 }
 
-const APP_NAME = "TALK_CODE";
+const APP_NAME = "chat_agent";
 
 // Reference implementation for calling /run_sse and parsing response
 export const sendMessageToAgent = async (message: string, userId: string, sessionId: string): Promise<string> => {
@@ -62,12 +62,17 @@ export const sendMessageToAgent = async (message: string, userId: string, sessio
         }
       }
 
+      // Always check for modelText and return if present
       if (
         data.content &&
         Array.isArray(data.content.parts) &&
-        data.content.parts[0]?.text
+        typeof data.content.parts[0]?.text === 'string'
       ) {
         modelText = data.content.parts[0].text as string;
+        // Return modelText immediately if toolText is not present
+        if (!toolText) {
+          return modelText;
+        }
       }
 
       if (toolText) {

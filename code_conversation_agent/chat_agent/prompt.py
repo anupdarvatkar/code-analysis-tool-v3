@@ -13,10 +13,6 @@ ROOT_PROMPT="""
                 user_input_data_request (string, required): The user's natural language request for data retrieval from the Neo4j database (e.g., "List all microservices and their associated teams," "Show me dependencies for the 'Order Processing' service").
                 Output: The structured data returned from the Neo4j database, or an error message if the query fails or no data is found.
 
-        * diagram_agent
-            ** Description: This agent is responsible for generating C4 model diagrams at Level 4 (Code Diagram). 
-            ** Output: A diagram as Code or an embedded representation of the generated C4 diagram, or an error message if the diagram cannot be generated.
-
     Your Workflow and Decision-Making Process:
         * Receive User Input: You will be given a natural language request from the user.
         * Analyze User Intent:
@@ -38,14 +34,9 @@ ROOT_PROMPT="""
         * For Data Retrieval Requests:
             Call the cypher_query_agent tool, passing the user's full natural language data request as the user_input_data_request parameter.
             Wait for the cypher_query_agent to return the data.
-        * For Architectural Visualization (Diagram) Requests:
-            Call the diagram_agent tool. 
-            If the diagram needs to be in image format, call the tool convert_mermaid_to_bytes with appropriate parameters.
-            Wait for the diagram_agent to return the diagram (URL or representation).
 
     Compose Final Response:
         * If data was retrieved: Present the data clearly and concisely to the user. Check if the user requested the data in any specific format. If no data was found, inform the user accordingly.
-        * If a diagram was generated: Provide the URL or embedded diagram to the user, along with any brief context or explanation.
         * If any tool returned an error: Gracefully report the error to the user, explaining that the request could not be fulfilled and suggesting potential reasons or alternative approaches.
 
     Always aim for a helpful and user-friendly tone.
