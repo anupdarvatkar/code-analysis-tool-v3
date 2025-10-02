@@ -9,6 +9,7 @@ from models import ClassDependency, PackageClassCount, LabelCount
 from typing import List
 from fastapi.responses import StreamingResponse
 import json
+from functools import lru_cache
 
 load_dotenv()
 NEO4J_URI = os.getenv("DB_URI")
@@ -121,6 +122,14 @@ async def get_total_classes_endpoint():
     """
     return neo4j_controller.get_total_classes()
 
+# Add a cache for class_details using lru_cache
+@lru_cache(maxsize=256)
+def get_cached_class_details(class_name: str):
+    """
+    Returns cached class details for a given class name.
+    """
+    return neo4j_controller.get_class_details(class_name)
+
 @app.get(
     "/classes/functional-specification",
     summary="Get functional specification for a given class"
@@ -132,11 +141,12 @@ async def get_functional_specification(
     """
     Retrieves the functional specification for a given class.
     """
-    class_details = neo4j_controller.get_class_details(class_name)
+    # Use cached class details
+    class_details = get_cached_class_details(class_name)
     spec = genai_processor.get_class_description(
         class_name=class_name,
         neo4j_description=class_details,
-        language=language  # <-- Pass language input to the model
+        language=language
     )
     return {"functional_specification": spec}
 

@@ -60,8 +60,7 @@ class GenAIProcessor:
 
         Parameters:
             class_name (str): The name of the class (e.g., 'Movie', 'Person').
-            neo4j_description (str): The raw output from a Neo4j query
-                                     (e.g., properties, relationships).
+            neo4j_description (str): The raw output from a Neo4j query.
             language (str): The target language for the output (default: 'english').
 
         Returns:
@@ -70,63 +69,92 @@ class GenAIProcessor:
         if not self.llm:
             return "Error: LLM was not initialized correctly."
 
-        # Use a tuple key for caching
-        cache_key = (class_name, language)
-        # Use a simple instance-level cache dictionary
+        # Step 1: Always generate and cache the English description
+        english_cache_key = (class_name, "english")
         if not hasattr(self, "_desc_cache"):
             self._desc_cache = {}
 
-        if cache_key in self._desc_cache:
-            print(f"Returning cached description for {class_name} in {language}")
-            return self._desc_cache[cache_key]
+        if english_cache_key in self._desc_cache:
+            english_content = self._desc_cache[english_cache_key]
+            print(f"Returning cached English description for {class_name}")
+        else:
+            # System prompt for English synthesis
+            system_prompt_en = (
+               "You are an expert documentation assistant. Your task is to analyze the "
+                "provided raw database output describing a class/node structure and rewrite "
+                "it into a clear, concise, and natural language description suitable for "
+                f"business analyst in English."
+                "Focus on the functional description, business rules, and avoid technical jargon."
+            )
+            user_query_en = (
+                f"Class Name: {class_name}\n\n"
+                f"Raw Database Data:\n---\n{neo4j_description}\n---\n\n"
+                "Based on the data above, generate the final, detailed description in English."
+            )
+            messages_en = [
+                SystemMessage(content=system_prompt_en),
+                HumanMessage(content=user_query_en),
+            ]
+            print(f"\n--- Invoking LLM for '{class_name}' description in English ---")
+            try:
+                response_en = self.llm.invoke(messages_en)
+                print("LLM call successful (English).")
+                print(f"LLM raw response: {response_en}")
+                print(f"LLM response text: {response_en.content}")
+                english_content = response_en.content
+                self._desc_cache[english_cache_key] = english_content
+            except (Exception, OutputParserException) as e:
+                error_message = (
+                    f"An error occurred during LLM generation for class '{class_name}' (English): {type(e).__name__}. "
+                    "Returning a default description. "
+                    "Default: This is a placeholder description for the class "
+                    f"'{class_name}' due to a processing error. The raw data provided "
+                    "was:\n"
+                    f"{neo4j_description}"
+                )
+                print(error_message)
+                print(f"Exception details: {e}")
+                return error_message
 
-        # Define the System Instruction (Persona)
-        system_prompt = (
-            "You are an expert documentation assistant. Your task is to analyze the "
-            "provided raw database output describing a class/node structure and rewrite "
-            "it into a clear, concise, and natural language description suitable for "
-            f"business analyst in {language}."
-            "Focus on the functional description, business rules, and avoid technical jargon."
+        # Step 2: If target language is English, return the cached English content
+        if language.lower() == "english":
+            return english_content
+
+        # Step 2: Translate the English content to the target language using LLM and cache
+        translation_cache_key = (class_name, language)
+        if translation_cache_key in self._desc_cache:
+            print(f"Returning cached translation for {class_name} in {language}")
+            return self._desc_cache[translation_cache_key]
+
+        system_prompt_translate = (
+            f"You are a professional translator and business analyst. Translate the following business-oriented class description into {language} for a non-technical stakeholder. "
+            "Preserve technical names as references unless there is an industry-standard translation. "
+            "Translate all explanatory text with high fluency and precision, maintaining a formal and clear register. "
+            "Do not add any introductory or concluding commentary. Only return the translated, structured summary."
         )
-
-        # Define the User Query
-        user_query = (
+        user_query_translate = (
             f"Class Name: {class_name}\n\n"
-            f"Raw Database Data:\n---\n{neo4j_description}\n---\n\n"
-            f"Based on the data above, generate the final, detailed description in {language}."
+            f"Business Description (English):\n{english_content}\n\n"
+            f"Target Language: {language}\n"
         )
-
-        # Construct the messages list
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_query),
+        messages_translate = [
+            SystemMessage(content=system_prompt_translate),
+            HumanMessage(content=user_query_translate),
         ]
-
-        print(f"\n--- Invoking LLM for '{class_name}' description in {language} ---")
-
+        print(f"\n--- Invoking LLM for '{class_name}' translation to {language} ---")
         try:
-            # Invoke the LLM
-            response = self.llm.invoke(messages)
-            print("LLM call successful.")
-            print (f"LLM raw response: {response}")
-            print(f"LLM response text: {response.content}")
-
-            # Save to cache
-            self._desc_cache[cache_key] = response.content
-
-            # Return the text content
-            return response.content
-
+            response_translate = self.llm.invoke(messages_translate)
+            print("LLM call successful (Translation).")
+            print(f"LLM raw response: {response_translate}")
+            print(f"LLM response text: {response_translate.content}")
+            self._desc_cache[translation_cache_key] = response_translate.content
+            return response_translate.content
         except (Exception, OutputParserException) as e:
-            # Handle common LLM invocation errors (API issues, timeouts, etc.)
             error_message = (
-                f"An error occurred during LLM generation for class '{class_name}': {type(e).__name__}. "
-                "Returning a default description. "
-                "Default: This is a placeholder description for the class "
-                f"'{class_name}' due to a processing error. The raw data provided "
-                "was:\n"
-                f"{neo4j_description}"
+                f"An error occurred during LLM translation for class '{class_name}' to {language}: {type(e).__name__}. "
+                "Returning the English description as fallback. "
+                f"English Description:\n{english_content}"
             )
             print(error_message)
             print(f"Exception details: {e}")
-            return error_message
+            return english_content
