@@ -62,7 +62,7 @@ pip install -r requirements.txt
 
 **Run the ADK API server:**
 ```powershell
-adk api-server --host 127.0.0.1 --port 9000
+adk api_server --host 127.0.0.1 --port 9000
 ```
 
 ---

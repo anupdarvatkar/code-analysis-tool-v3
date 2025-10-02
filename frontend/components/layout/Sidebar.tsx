@@ -32,7 +32,11 @@ const Sidebar: React.FC = () => {
         <NavLink to="/chat" className={navLinkClasses}>
           <MessageSquareIcon className="w-6 h-6 mr-4" />
           Chat
-        </NavLink>       
+        </NavLink>
+         <NavLink to="/chat-v2" className={navLinkClasses}>
+          <MessageSquareIcon className="w-6 h-6 mr-4" />
+          Dummy Chat
+        </NavLink>             
       </nav>
     </div>
   );

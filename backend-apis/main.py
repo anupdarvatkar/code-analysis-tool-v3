@@ -7,6 +7,8 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from models import ClassDependency, PackageClassCount, LabelCount
 from typing import List
+from fastapi.responses import StreamingResponse
+import json
 
 load_dotenv()
 NEO4J_URI = os.getenv("DB_URI")
@@ -50,7 +52,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:3000"],  # Or ["*"] for all origins (not recommended for production)
+    allow_origins=["http://localhost:3000"],  # Or ["*"] for all origins (not recommended for production)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -138,3 +140,73 @@ async def get_functional_specification(class_name: str = Query(..., description=
     spec = genai_processor.get_class_description(class_name=class_name, neo4j_description=class_details, language="english")
     
     return spec
+
+# Add a global counter to alternate responses
+run_sse_dummy_counter = 0
+
+@app.post("/run_sse_dummy")
+async def run_sse_dummy():
+    """
+    Dummy SSE endpoint that alternates between a static dependency response and a dummy output.
+    """
+    global run_sse_dummy_counter
+    run_sse_dummy_counter += 1
+
+    if run_sse_dummy_counter % 2 == 1:
+        # Static response text
+        response_text = """
+Here are the dependencies for `AdminController` up to 5 levels deep:
+
+**Level 1 Dependencies:**
+
+*   `userService` (Class, Service Layer): Provides business logic for user management.
+*   `User` (Class, Entity Layer): Represents a user or customer entity for persistence.
+*   `productService` (Class, Service Layer): Serves as the service layer for product management.
+*   `categoryService` (Class, Service Layer): Serves as the business logic layer for category management.
+*   `Product` (Class, Entity Layer): JPA Entity representing a product in an e-commerce system.
+*   `Category` (Class, Entity Layer): JPA entity that represents a product category in the database.
+
+**Level 2 Dependencies:**
+
+*   `User` (Class, Entity Layer): (via `userService`)
+*   `userDao` (Class, Repository Layer): Responsible for all database operations related to User entities. (via `userService`)
+*   `productDao` (Class, Repository Layer): Data Access Object (DAO) for managing `Product` entities. (via `productService`)
+*   `Product` (Class, Entity Layer): (via `productService`)
+*   `categoryDao` (Class, Repository Layer): Data Access Object (DAO) for managing Category entities. (via `categoryService`)
+*   `Category` (Class, Entity Layer): (via `categoryService`)
+*   `User` (Class, Entity Layer): (via `Product`)
+*   `Category` (Class, Entity Layer): (via `Product`)
+
+**Level 3 Dependencies:**
+
+*   `User` (Class, Entity Layer): (via `userService` -> `userDao`)
+*   `Product` (Class, Entity Layer): (via `productService` -> `productDao`)
+*   `Category` (Class, Entity Layer): (via `productService` -> `productDao`)
+*   `User` (Class, Entity Layer): (via `productService` -> `Product`)
+*   `Category` (Class, Entity Layer): (via `productService` -> `Product`)
+*   `Category` (Class, Entity Layer): (via `categoryService` -> `categoryDao`)
+
+**Level 4 Dependencies:**
+
+*   `User` (Class, Entity Layer): (via `productService` -> `productDao` -> `Product`)
+*   `Category` (Class, Entity Layer): (via `productService` -> `productDao` -> `Product`)
+"""
+    else:
+        response_text = "I am dummy output"
+
+    sse_data = {
+        "content": {
+            "parts": [
+                {"text": response_text}
+            ],
+            "role": "model"
+        },
+        "author": "code_conversation_agent",
+        "source": "database"
+    }
+    sse_event = f"data: {json.dumps(sse_data)}\n\n"
+
+    async def event_stream():
+        yield sse_event
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream; charset=utf-8")

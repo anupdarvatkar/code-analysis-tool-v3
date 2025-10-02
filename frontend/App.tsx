@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import DashboardPage from './pages/DashboardPage';
 import ChatPage from './pages/ChatPage';
+import ChatPageV2 from './pages/ChatPageV2';
 import DetailPage from './pages/DetailPage';
 import HomePage from './pages/HomePage';
 import ClassDetailsPage from './pages/ClassDetailsPage';
@@ -16,6 +17,7 @@ const App: React.FC = () => {
           <Route path="/home" element={<HomePage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/chat-v2" element={<ChatPageV2 />} />
           <Route path="/detail/:packageName" element={<DetailPage />} />
           <Route path="/class-details" element={<ClassDetailsPage />} />
         </Route>

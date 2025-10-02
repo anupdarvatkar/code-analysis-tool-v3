@@ -1,0 +1,6 @@
+#Petstore configurations @ Aura with anup.darvatkar@gmail.com
+DB_URI=
+DB_USER=neo4j
+DB_PASSWORD=
+#anupworks101
+GOOGLE_API_KEY=

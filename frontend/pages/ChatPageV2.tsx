@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageAuthor } from '../types';
 import { UserIcon, BotIcon } from '../components/icons/Icons';
 import MermaidDiagram from '../components/chat/MermaidDiagram';
+import ChatWidget from '../components/chat/ChatWidget';
 
-// Use environment variable for API URL
-const API_URL = import.meta.env.VITE_CHAT_API_URL || "http://127.0.0.1:9000/run_sse";
-const SESSION_API_BASE = import.meta.env.VITE_SESSION_API_URL || "http://127.0.0.1:9000";
+const API_URL = "http://127.0.0.1:8085/run_sse_dummy";
+
+const APP_NAME = "chat_agent";
 
 function generateUserId() {
   return 'user-' + Math.random().toString(36).substring(2, 12);
@@ -15,10 +16,7 @@ function generateSessionId() {
   return 'session-' + Math.random().toString(36).substring(2, 12);
 }
 
-const APP_NAME = "chat_agent";
-
-// Reference implementation for calling /run_sse and parsing response
-export const sendMessageToAgent = async (message: string, userId: string, sessionId: string): Promise<string> => {
+export const sendMessageToAgentV2 = async (message: string, userId: string, sessionId: string): Promise<string> => {
   try {
     const payload = {
       appName: APP_NAME,
@@ -49,75 +47,24 @@ export const sendMessageToAgent = async (message: string, userId: string, sessio
 
     const text = await response.text();
     const lines = text.split('\n').filter(line => line.startsWith('data: '));
-    let toolText: string | null = null;
     let modelText: string | null = null;
     for (const line of lines) {
       const jsonText = line.slice(6);
       const data = JSON.parse(jsonText);
 
-      const toolResponse = (data.tool_response ?? data.function_response ?? data.response ?? data.result ?? null) as any;
-      if (toolResponse && typeof toolResponse === 'object') {
-        if (typeof toolResponse.final_text === 'string' && toolResponse.final_text.trim().length > 0) {
-          toolText = toolResponse.final_text;
-        }
-      }
-
-      // Always check for modelText and return if present
       if (
         data.content &&
         Array.isArray(data.content.parts) &&
         typeof data.content.parts[0]?.text === 'string'
       ) {
         modelText = data.content.parts[0].text as string;
-        // Return modelText immediately if toolText is not present
-        if (!toolText) {
-          return modelText;
-        }
-      }
-
-      if (toolText) {
-        return toolText;
+        return modelText;
       }
 
       if (data.error) {
         throw new Error(data.error);
       }
     }
-
-    try {
-      const lastLine = lines[lines.length - 1];
-      if (lastLine && lastLine.startsWith('data: ')) {
-        const lastData = JSON.parse(lastLine.slice(6));
-        const lastTool = (lastData.tool_response ?? lastData.function_response ?? lastData.response ?? lastData.result ?? null) as any;
-        if (lastTool && lastTool.render_suggestions && lastTool.render_suggestions.title) {
-          const title = lastTool.render_suggestions.title as string;
-          const rsLines = (lastTool.render_suggestions.lines as string[]) || [];
-          const groups = (lastTool.render_suggestions.groups as { term: string; lines: string[] }[]) || [];
-          if (title && Array.isArray(rsLines) && rsLines.length > 0) {
-            const composed = [title, ...rsLines.map((l: string, i: number) => `${i + 1}. ${l}`)].join('\n');
-            return composed;
-          }
-          if (title && Array.isArray(groups) && groups.length > 0) {
-            const parts: string[] = [title];
-            for (const g of groups) {
-              parts.push('');
-              parts.push(g.term);
-              if (Array.isArray(g.lines) && g.lines.length > 0) {
-                parts.push('Best match for your search is:');
-                parts.push(`1. ${g.lines[0]}`);
-                if (g.lines.length > 1) {
-                  parts.push('Other related suggestions:');
-                  for (let i = 1; i < g.lines.length; i++) {
-                    parts.push(`${i + 1}. ${g.lines[i]}`);
-                  }
-                }
-              }
-            }
-            return parts.join('\n');
-          }
-        }
-      }
-    } catch {}
 
     throw new Error('No valid function response or text found in SSE stream.');
   } catch (error) {
@@ -151,7 +98,11 @@ const ChatMessageComponent: React.FC<{ message: { author: string; text: string }
           {isMermaid ? (
             <MermaidDiagram code={extractMermaidCode(message.text)} />
           ) : (
-            <p className="whitespace-pre-wrap">{message.text}</p>
+            !isUser ? (
+              <ChatWidget response={message.text} />
+            ) : (
+              <p className="whitespace-pre-wrap">{message.text}</p>
+            )
           )}
         </div>
         {isUser && (
@@ -164,7 +115,7 @@ const ChatMessageComponent: React.FC<{ message: { author: string; text: string }
   );
 };
 
-const ChatPage: React.FC = () => {
+const ChatPageV2: React.FC = () => {
   const [messages, setMessages] = useState<{ author: string; text: string }[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -216,15 +167,14 @@ const ChatPage: React.FC = () => {
       if (!input.trim() || isLoading) return;
       setIsLoading(true);
       setMessages(prev => [...prev, { author: MessageAuthor.USER, text: input }, { author: MessageAuthor.AI, text: '...' }]);
-      setInput(''); // Clear input immediately
+      setInput('');
       try {
-        const agentReply = await sendMessageToAgent(input, userId, sessionId);
+        const agentReply = await sendMessageToAgentV2(input, userId, sessionId);
         setMessages(prev => prev.slice(0, -1).concat({ author: MessageAuthor.AI, text: agentReply }));
       } catch (error) {
         setMessages(prev => prev.slice(0, -1).concat({ author: MessageAuthor.AI, text: "Sorry, I encountered an error." }));
       } finally {
         setIsLoading(false);
-        // Focus the textarea for next input after response is rendered
         setTimeout(() => {
           textareaRef.current?.focus();
         }, 0);
@@ -276,4 +226,4 @@ const ChatPage: React.FC = () => {
   );
 };
 
-export default ChatPage;
+export default ChatPageV2;
