@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DocumentTextIcon } from '../components/icons/Icons';
 
-const API_URL = "http://127.0.0.1:8085";
+//TODO move to .env file
+const API_URL = "http://127.0.0.1:8000";
 
 const ClassDetailsPage: React.FC = () => {
   const [searchParams] = useSearchParams();

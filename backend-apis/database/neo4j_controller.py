@@ -80,3 +80,18 @@ class Neo4jController:
         cypher_query = "MATCH (c:Class) RETURN count(c) AS total_classes"
         data = self._run_query(cypher_query)
         return data[0]['total_classes'] if data else 0
+    
+    def get_class_details(self, class_name: str) -> Dict[str, Any]:
+        """
+        Returns detailed information about a specific class.
+        """
+        cypher_query = """
+        MATCH (c:Class {name : $class_name})
+        OPTIONAL MATCH (source)-[r1]-(c)
+        OPTIONAL MATCH (c)-[r2]-(target)
+        RETURN c, collect(DISTINCT source), collect(DISTINCT target) 
+        """
+        data = self._run_query(cypher_query, {"class_name": class_name})
+        if not data:
+            raise HTTPException(status_code=404, detail="Class not found.")
+        return data[0]

@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 import uvicorn
 from database.neo4j_controller import Neo4jController
+from genai.genai_processor import GenAIProcessor
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from models import ClassDependency, PackageClassCount, LabelCount
@@ -12,13 +13,24 @@ NEO4J_URI = os.getenv("DB_URI")
 NEO4J_USER = os.getenv("DB_USER")
 NEO4J_PASSWORD = os.getenv("DB_PASSWORD")
 
+os.environ["GOOGLE_API_KEY"] = os.getenv('GOOGLE_API_KEY')
+
 # Global variable initialization
 neo4j_controller = None
+genai_processor = None
 
 # Use FastAPI lifespan event instead of deprecated startup/shutdown events
 async def lifespan(app):
     global neo4j_controller
+    global genai_processor
+ 
     # Startup logic
+    try:
+        genai_processor = GenAIProcessor(model_name="gemini-2.5-flash", temperature=0.2)
+    except Exception as e:
+        print(f"FATAL: GenAIProcessor failed to initialize: {e}")
+        raise Exception("Cannot start without LLM connection")  
+
     try:
         neo4j_controller = Neo4jController(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
     except Exception as e:
@@ -38,7 +50,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Or ["*"] for all origins (not recommended for production)
+    allow_origins=["http://127.0.0.1:3000"],  # Or ["*"] for all origins (not recommended for production)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -114,8 +126,15 @@ async def get_functional_specification(class_name: str = Query(..., description=
     For now, returns a dummy functional specification.
     """
     # Dummy specification
-    spec = {
-        "class_name": class_name,
-        "functional_specification": f"This is a dummy functional specification for the class '{class_name}'."
-    }
+    #spec = {
+    #    "class_name": class_name,
+    #   "functional_specification": f"This is a dummy functional specification for the class '{class_name}'."
+    #}
+
+    #Get the data from the database
+    class_details = neo4j_controller.get_class_details(class_name)
+
+    # Get the data formatted as a string using LLM
+    spec = genai_processor.get_class_description(class_name=class_name, neo4j_description=class_details, language="english")
+    
     return spec
