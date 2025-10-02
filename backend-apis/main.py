@@ -52,7 +52,10 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Or ["*"] for all origins (not recommended for production)
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -122,24 +125,20 @@ async def get_total_classes_endpoint():
     "/classes/functional-specification",
     summary="Get functional specification for a given class"
 )
-async def get_functional_specification(class_name: str = Query(..., description="Name of the class")):
+async def get_functional_specification(
+    class_name: str = Query(..., description="Name of the class"),
+    language: str = Query("english", description="Language for the specification")
+):
     """
     Retrieves the functional specification for a given class.
-    For now, returns a dummy functional specification.
     """
-    # Dummy specification
-    #spec = {
-    #    "class_name": class_name,
-    #   "functional_specification": f"This is a dummy functional specification for the class '{class_name}'."
-    #}
-
-    #Get the data from the database
     class_details = neo4j_controller.get_class_details(class_name)
-
-    # Get the data formatted as a string using LLM
-    spec = genai_processor.get_class_description(class_name=class_name, neo4j_description=class_details, language="english")
-    
-    return spec
+    spec = genai_processor.get_class_description(
+        class_name=class_name,
+        neo4j_description=class_details,
+        language=language  # <-- Pass language input to the model
+    )
+    return {"functional_specification": spec}
 
 # Add a global counter to alternate responses
 run_sse_dummy_counter = 0

@@ -6,5 +6,6 @@ mermaid-cli
 langchain-neo4j
 google-adk
 fastapi 
-uvicorn 
+uvicorn
+langchain-google-genai
 

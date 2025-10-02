@@ -1,6 +1,7 @@
 import os
 import json
 from typing import Dict, Any, Optional
+from functools import lru_cache
 
 # LangChain imports for Google Generative AI
 # Switched from langchain_google_vertexai to langchain_google_genai
@@ -14,26 +15,38 @@ from langchain_core.exceptions import OutputParserException # A common exception
 """
 class GenAIProcessor:
     
-    def __init__(self, model_name: str = "gemini-2.5-flash", **kwargs: Any):
+    def __init__(self, model_name: Optional[str] = None, **kwargs: Any):
         """
         Initializes the LLM model instance (ChatGoogleGenerativeAI).
 
         Parameters:
-            model_name (str): The name of the Gemini model to use (default: gemini-2.5-flash).
-            **kwargs: Additional parameters passed to the ChatGoogleGenerativeAI constructor
-                      (e.g., temperature, max_output_tokens).
+            model_name (str): The name of the Gemini model to use.
+                              If not provided, reads from environment variable GEMINI_MODEL_NAME,
+                              defaults to 'gemini-2.5-flash'.
+            **kwargs: Additional parameters passed to the ChatGoogleGenerativeAI constructor.
         """
+        # Read model name from environment if not provided
+        if model_name is None:
+            model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash")
         print(f"Initializing ChatGoogleGenerativeAI with model: {model_name}...")
         try:
-            # NOTE: This relies on the GEMINI_API_KEY environment variable being set.
             self.llm = ChatGoogleGenerativeAI(model=model_name, **kwargs)
             print("Model initialized successfully.")
         except Exception as e:
-            # Handle potential initialization errors (e.g., missing API key)
             print(f"Error during LLM initialization: {e}")
             self.llm = None
-            raise RuntimeError("Failed to initialize ChatGoogleGenerativeAI. Check your GEMINI_API_KEY environment variable and model name.")
-        
+            raise RuntimeError("Failed to initialize ChatGoogleGenerativeAI. Check your GEMINI_API_KEY and GEMINI_MODEL_NAME environment variables.")
+
+    @staticmethod
+    @lru_cache(maxsize=128)
+    def _cached_description(class_name: str, neo4j_description: str, language: str) -> str:
+        """
+        Internal static method for caching LLM results.
+        """
+        # This method will be called by get_class_description
+        # The actual LLM call should be done in the instance method, so we just return a placeholder here.
+        # This is a stub, actual caching logic is in get_class_description.
+        return ""
 
     def get_class_description(
         self,
@@ -43,7 +56,7 @@ class GenAIProcessor:
     ) -> str:
         """
         Processes raw Neo4j output describing a class and generates a natural
-        language description using the LLM.
+        language description using the LLM, with caching.
 
         Parameters:
             class_name (str): The name of the class (e.g., 'Movie', 'Person').
@@ -56,6 +69,16 @@ class GenAIProcessor:
         """
         if not self.llm:
             return "Error: LLM was not initialized correctly."
+
+        # Use a tuple key for caching
+        cache_key = (class_name, language)
+        # Use a simple instance-level cache dictionary
+        if not hasattr(self, "_desc_cache"):
+            self._desc_cache = {}
+
+        if cache_key in self._desc_cache:
+            print(f"Returning cached description for {class_name} in {language}")
+            return self._desc_cache[cache_key]
 
         # Define the System Instruction (Persona)
         system_prompt = (
@@ -88,6 +111,9 @@ class GenAIProcessor:
             print (f"LLM raw response: {response}")
             print(f"LLM response text: {response.content}")
 
+            # Save to cache
+            self._desc_cache[cache_key] = response.content
+
             # Return the text content
             return response.content
 
@@ -102,4 +128,5 @@ class GenAIProcessor:
                 f"{neo4j_description}"
             )
             print(error_message)
+            print(f"Exception details: {e}")
             return error_message

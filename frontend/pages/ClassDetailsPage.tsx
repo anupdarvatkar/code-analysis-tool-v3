@@ -2,8 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DocumentTextIcon } from '../components/icons/Icons';
 
-//TODO move to .env file
-const API_URL = "http://127.0.0.1:8000";
+// Use environment variable for backend API URI
+const BACKEND_API_URI = import.meta.env.VITE_BACKEND_API_URI || "http://127.0.0.1:8085";
+
+const LANGUAGES = [
+  { value: "english", label: "English" },
+  { value: "french", label: "French" },
+  { value: "german", label: "German" },
+  { value: "chinese", label: "Mandarin Chinese" },
+  { value: "spanish", label: "Spanish" },
+];
 
 const ClassDetailsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -12,10 +20,11 @@ const ClassDetailsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [allClasses, setAllClasses] = useState<string[]>([]);
+  const [language, setLanguage] = useState<string>('english');
 
   // Fetch all classes where package_name contains 'jtspringproject'
   useEffect(() => {
-    fetch(`${API_URL}/classes/dependencies`)
+    fetch(`${BACKEND_API_URI}/classes/dependencies`)
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch class dependencies');
         return res.json();
@@ -32,8 +41,8 @@ const ClassDetailsPage: React.FC = () => {
       });
   }, []);
 
-  // Fetch specification for selected class
-  const fetchSpecification = useCallback(async (className: string) => {
+  // Fetch specification for selected class and language
+  const fetchSpecification = useCallback(async (className: string, lang: string = language) => {
     if (!className) {
       setSpecification('');
       setError(null);
@@ -45,7 +54,9 @@ const ClassDetailsPage: React.FC = () => {
     setSpecification('');
 
     try {
-      const res = await fetch(`${API_URL}/classes/functional-specification?class_name=${encodeURIComponent(className)}`);
+      const res = await fetch(
+        `${BACKEND_API_URI}/classes/functional-specification?class_name=${encodeURIComponent(className)}&language=${encodeURIComponent(lang)}`
+      );
       if (!res.ok) throw new Error('Failed to fetch functional specification');
       const result = await res.json();
       setSpecification(result.functional_specification);
@@ -55,21 +66,29 @@ const ClassDetailsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [language]);
 
   // Handle query param selection
   useEffect(() => {
     const classNameFromQuery = searchParams.get('class');
     if (classNameFromQuery && allClasses.includes(classNameFromQuery)) {
       setSelectedClass(classNameFromQuery);
-      fetchSpecification(classNameFromQuery);
+      fetchSpecification(classNameFromQuery, language);
     }
-  }, [searchParams, allClasses, fetchSpecification]);
+  }, [searchParams, allClasses, fetchSpecification, language]);
 
   const handleClassChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const className = event.target.value;
     setSelectedClass(className);
-    fetchSpecification(className);
+    fetchSpecification(className, language);
+  };
+
+  const handleLanguageChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const lang = event.target.value;
+    setLanguage(lang);
+    if (selectedClass) {
+      fetchSpecification(selectedClass, lang);
+    }
   };
 
   return (
@@ -77,24 +96,44 @@ const ClassDetailsPage: React.FC = () => {
       <h1 className="text-4xl font-bold text-gray-900">Class Functional Details</h1>
       
       <div className="bg-white p-6 rounded-md shadow-sm border border-gray-200">
-        <div className="mb-6">
-          <label htmlFor="class-selector" className="block text-lg font-medium text-gray-700 mb-2">
-            Select a Class
-          </label>
-          <select
-            id="class-selector"
-            value={selectedClass}
-            onChange={handleClassChange}
-            className="w-full max-w-md p-3 bg-gray-50 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-            aria-label="Select a class to view its specification"
-          >
-            <option value="">-- Choose a class --</option>
-            {allClasses.map(className => (
-              <option key={className} value={className}>
-                {className}
-              </option>
-            ))}
-          </select>
+        <div className="mb-6 flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex-1">
+            <label htmlFor="class-selector" className="block text-lg font-medium text-gray-700 mb-2">
+              Select a Class
+            </label>
+            <select
+              id="class-selector"
+              value={selectedClass}
+              onChange={handleClassChange}
+              className="w-full max-w-md p-3 bg-gray-50 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+              aria-label="Select a class to view its specification"
+            >
+              <option value="">-- Choose a class --</option>
+              {allClasses.map(className => (
+                <option key={className} value={className}>
+                  {className}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="language-selector" className="block text-lg font-medium text-gray-700 mb-2">
+              Language
+            </label>
+            <select
+              id="language-selector"
+              value={language}
+              onChange={handleLanguageChange}
+              className="w-full max-w-xs p-3 bg-gray-50 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+              aria-label="Select language"
+            >
+              {LANGUAGES.map(lang => (
+                <option key={lang.value} value={lang.value}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="mt-8 border-t border-gray-200 pt-6 min-h-[300px] flex flex-col justify-center">
@@ -104,7 +143,7 @@ const ClassDetailsPage: React.FC = () => {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span>Generating specification, please wait...</span>
+              <span>Generating Functiona Details, please wait...</span>
             </div>
           )}
 
